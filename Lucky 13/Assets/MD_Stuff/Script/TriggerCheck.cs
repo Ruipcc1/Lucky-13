@@ -4,13 +4,15 @@ using UnityEngine;
 
 public class TriggerCheck : MonoBehaviour
 {
-    private GameObject rayHitObject;
+    private GameObject rayHitObject, prevHitObject;
     private Animator eleAnimator;
     private Transform camTransform;
-    private float eleTimer;
-    private bool eleActiv, canRayCast;
-
+    private float eleTimer, tpTimer;
+    private bool eleActiv, canRayCast, teleportPlayer, leftLiftButton, rayClicked, doTp;
+    private Material curretMat;
+    
     public Material thirteenMat;
+    public GameObject Elevator, elevatorTPArea;
 
     void Start()
     {
@@ -18,7 +20,10 @@ public class TriggerCheck : MonoBehaviour
         camTransform = GetComponentInChildren<Camera>().GetComponent<Transform>();
         eleActiv = false;
         canRayCast = false;
-        
+        teleportPlayer = false;
+        leftLiftButton = false;
+        rayClicked = false;
+        doTp = false;
     }
 
 
@@ -26,10 +31,7 @@ public class TriggerCheck : MonoBehaviour
     {
         ClosingEleDoor();
         RayCasting();
-        if (canRayCast)
-        {
-            Debug.LogWarning("CanCast");
-        }
+        TeleportElevator();
     }
 
     private void OnTriggerEnter(Collider other)
@@ -37,6 +39,8 @@ public class TriggerCheck : MonoBehaviour
         if (other.name == "ElevatorCastArea")
             canRayCast = true;
         if (other.name == "ElevatorTrigger")
+            canRayCast = true;
+        if (other.name == "KeyTrigger")
             canRayCast = true;
     }
 
@@ -46,6 +50,11 @@ public class TriggerCheck : MonoBehaviour
         {
             OpeningDoor();
         }
+        if (other.name == "KeyTrigger" && Input.GetKey("e"))
+        {
+            gameObject.transform.position = new Vector3(-19, 0, -2);
+            canRayCast = false;
+        }
     }
 
     private void OnTriggerExit(Collider other)
@@ -53,6 +62,8 @@ public class TriggerCheck : MonoBehaviour
         if (other.name == "ElevatorTrigger")
             canRayCast = false;
         if (other.name == "ElevatorCastArea")
+            canRayCast = false;
+        if (other.name == "KeyTrigger")
             canRayCast = false;
     }
 
@@ -74,10 +85,16 @@ public class TriggerCheck : MonoBehaviour
             }
         }
     }
+    void ForceEleDoorOpen()
+    {
+        eleAnimator.SetBool("OpenDoor", true);
+    }
     void ForceEleDoorClose()
     {
         eleActiv = false;
         eleAnimator.SetBool("OpenDoor", false);
+        tpTimer = Time.time + 2.5f;
+        doTp = true;
     }
 
     void RayCasting()
@@ -91,9 +108,9 @@ public class TriggerCheck : MonoBehaviour
                 Debug.LogWarning(hit.collider.name);
                 rayHitObject = hit.collider.gameObject;
             }
-        }
-        if (rayHitObject)
+
             RayCastingAfterMath();
+        }      
     }
 
     void RayCastingAfterMath()
@@ -103,14 +120,54 @@ public class TriggerCheck : MonoBehaviour
             if (Input.GetMouseButton(0))
                 OpeningDoor();
         }
-        
+
+        if (rayHitObject.name.Contains("LiftButton") && !leftLiftButton)
+        {
+            prevHitObject = rayHitObject;
+            curretMat = rayHitObject.GetComponent<Renderer>().material;
+            rayHitObject.GetComponent<Renderer>().material = thirteenMat;
+            leftLiftButton = true;
+            rayClicked = false;
+        }
+
         if (rayHitObject.name.Contains("LiftButton") && Input.GetMouseButton(0))
         {
             rayHitObject.GetComponent<Renderer>().material = thirteenMat;
             ForceEleDoorClose();
-            //teleport && open door 
+            rayClicked = true;
+            leftLiftButton = false;
         }
 
+        if (rayHitObject.name.Contains("Key") && Input.GetMouseButton(0))
+        {
+            canRayCast = false;
+            gameObject.transform.position = new Vector3(-19, 0, -2);
+        }
+
+        if (leftLiftButton && !rayHitObject.name.Contains("LiftButton") && !rayClicked)
+        {
+            leftLiftButton = false;
+            prevHitObject.GetComponent<Renderer>().material = curretMat;
+        }
+
+
+    }
+
+    void TeleportElevator()
+    {
+        if (Time.time > tpTimer && doTp)
+        {
+            doTp = false;
+            gameObject.transform.parent = Elevator.transform;
+            Elevator.transform.position = elevatorTPArea.transform.position;
+            GameObject cObj = GameObject.Find("MainCamera");
+            cObj.transform.parent = null;
+            Elevator.transform.rotation = elevatorTPArea.transform.rotation;
+            cObj.transform.parent = gameObject.transform;
+            cObj.transform.position = new Vector3(0, 0.6f, 0);
+            ForceEleDoorOpen();
+            gameObject.transform.parent = null;
+        }
     }
 
     void OnGUI()
